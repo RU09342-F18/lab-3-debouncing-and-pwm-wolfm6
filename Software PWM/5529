@@ -1,0 +1,74 @@
+#include <msp430.h>
+/**
+ * main.c
+ */
+int pwm = 500; // for PWM
+int state = 0; // for debounce
+int main(void)
+{
+    WDTCTL = WDTPW | WDTHOLD;   // Stop watchdog timer
+
+    P1DIR |= BIT0;  // sets P1.0 as an output
+    P1OUT &= ~BIT0; // sets LED off
+    P1DIR &= ~BIT1; // sets P1.1 as an input
+    P1REN |= BIT1;  // enables pull-up
+    P1OUT |= BIT1;  // sets pull up
+    P1IE |= BIT1;   // enables interrupt
+    P1IFG &= ~BIT1; // clears interrupt
+    P1IES |= BIT1;  //  edge select high to low
+
+    TA0CCR0 = 1000;
+    TA0CTL = TASSEL_2 + MC_1 + TACLR; //smclock, up mode, clear timer to zero, enable timer a interrupts
+    TA1CCTL0 = CCIE;                    // CCR1 interrupt enabled
+    TA1CCR0 = 50000;                    //overflow every 10ms FOR DEBOUNCE
+
+    __bis_SR_register(GIE);     // Enter LPM3, enable interrupts
+    for(;;) //pwm loop
+    {
+        if(TA0R <= pwm) P1OUT ^= BIT0; // pwm/1000 * 100% = duty cycle
+        else if (TA0R > pwm) P1OUT &= ~BIT0;
+    }
+}
+
+#pragma vector=PORT1_VECTOR
+__interrupt void PORT_1(void)
+{
+        switch(state)
+        {
+        case 0: // off -> going on
+            TA1CTL = TASSEL_2 + MC_1 + TACLR;   // enable timer
+            P1IFG &= ~BIT1; // clear interrupts
+            P1IE &= ~BIT1;  // disable interrupts
+            break;
+        case 1: // on -> going off
+            TA1CTL = TASSEL_2 + MC_1 + TACLR;   // enable timer
+            P1IFG &= ~BIT1; // clear interrupts
+            P1IE &= ~BIT1;  // disable interrupts
+            break;
+        }
+}
+
+#pragma vector=TIMER1_A0_VECTOR
+__interrupt void Timer_A0 (void)
+{
+        switch(state)
+        {
+        case 0: // going on -> on
+            if(pwm < 1000) pwm += 100;
+            else pwm = 0;   // toggle LED
+            P1IE |= BIT1;   // enable interrupts
+            P1IES &= ~BIT1; // edge select low to high
+            TA1CTL &= ~TASSEL_2;    // stop timer
+            TA1CTL |= TACLR;    // clear timer
+            state = 1;  // go to next state
+            break;
+        case 1: // going off -> off
+            P1IE |= BIT1;   // enable interrupt
+            P1IFG &= ~BIT1; // clear interrupts
+            P1IES |= BIT1;  // edge select high to low
+            TA1CTL &= ~TASSEL_2;    // stop timer
+            TA1CTL |= TACLR;    // clear timer
+            state = 0;  // if button is pressed re-enter case 0
+            break;
+        }
+}
