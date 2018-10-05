@@ -1,5 +1,7 @@
 #include <msp430.h>
-
+/**
+ * main.c
+ */
 int pwm = 500; // for PWM
 int state = 0; // for debounce
 int main(void)
