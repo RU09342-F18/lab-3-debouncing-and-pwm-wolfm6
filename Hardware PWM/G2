@@ -1,0 +1,48 @@
+#include <msp430.h> 
+/**
+ * main.c
+ */
+
+int pwm = 500;
+int main(void)
+{
+    WDTCTL = WDTPW + WDTHOLD;   // Stop watchdog timer
+
+    P1SEL |= BIT6;  // sets P1.6 as GPIO
+    P1DIR |= BIT6;  // sets P1.6 as an output (LED)
+    P1DIR &= ~BIT3; // sets P1.3 as an input (button)
+    P1REN |= BIT3;  // enables pull up
+    P1OUT |= BIT3;  // sets as a pull up
+    P1IE |= BIT3;   // enables interrupts at button
+    P1IFG &= ~BIT3; //  clears interrupts
+
+    TA1CCTL0 = CCIE;    // CCR1 interrupt enabled
+    TA1CCR0 = 10000;    // overflow every 10ms FOR DEBOUNCE
+    TA0CCTL1 = OUTMOD_7;    // CCR1 reset/set
+    TA0CCR0 = 1000-1;   // overflow every 1ms FOR PWM PERIOD
+    TA0CCR1 = 500;  // starts PWM at 50%
+    TA0CTL = TASSEL_2 | MC_1;   //smclk, up mode
+
+    __bis_SR_register(LPM0_bits + GIE); // enter LPM0 w/ interrupt
+
+    return 0;
+}
+
+#pragma vector=PORT1_VECTOR
+__interrupt void PORT_1(void)
+{
+    TA1CTL = TASSEL_2 + MC_1;   // enables timer
+
+    P1IFG &= ~BIT3; // clears interrupts
+    P1IES &= ~BIT3; // edge select low to high
+}
+
+#pragma vector=TIMER1_A0_VECTOR
+__interrupt void Timer1_A0 (void)
+{
+    if(pwm < 1000) pwm += 100;
+    else pwm = 0;
+    P1IE |= BIT3;   // enables interrupt
+    TA0CCR1 = pwm;  // PWM starts at 50%, increasing by 10% and then resets to 0
+    TA1CTL = 0x00;  // stops timer
+}
