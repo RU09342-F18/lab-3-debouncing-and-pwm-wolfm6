@@ -67,8 +67,8 @@ __interrupt void Timer_A0 (void)
             P1IE |= BIT3;   // enables interrupt
             P1IFG &= ~BIT3; // clears interrupt
             P1IES |= BIT3;  // edge select high to low (button pressed)
-            TA1CTL &= ~TASSEL_2;    // stop timer        //STOP TIMER
-            TA1CTL |= TACLR;    // clear timer            //CLEAR TIMER
+            TA1CTL &= ~TASSEL_2;    // stop timer      
+            TA1CTL |= TACLR;    // clear timer           
             state = 0;  // if button is pressed again re-enter case 0
             break;
         }
